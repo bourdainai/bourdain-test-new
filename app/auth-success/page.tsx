@@ -7,6 +7,8 @@ interface Order {
   order_number: number;
   total_price: string;
   created_at: string;
+  status: string;
+  isDraft: boolean;
   line_items: Array<{
     id: number;
     title: string;
@@ -160,9 +162,24 @@ export default function AuthSuccess() {
               <div key={order.id} className="bg-white rounded-lg shadow p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h2 className="text-xl font-semibold">Order #{order.order_number}</h2>
+                    <h2 className="text-xl font-semibold">
+                      Order #{order.order_number}
+                      {order.isDraft && (
+                        <span className="ml-2 text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                          Draft
+                        </span>
+                      )}
+                    </h2>
                     <p className="text-gray-600">
                       {new Date(order.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm mt-1">
+                      Status: <span className={`capitalize ${
+                        order.status === 'paid' ? 'text-green-600' :
+                        order.status === 'pending' ? 'text-yellow-600' :
+                        order.status === 'refunded' ? 'text-red-600' :
+                        'text-gray-600'
+                      }`}>{order.status}</span>
                     </p>
                   </div>
                   <div className="text-right">

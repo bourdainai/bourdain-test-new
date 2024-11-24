@@ -19,10 +19,39 @@ export async function GET(request: Request) {
     console.log('Making request to Shopify GraphQL API...');
     const apiUrl = `https://${shopDomain}/admin/api/2023-10/graphql.json`;
     
-    // GraphQL query to fetch orders
+    // GraphQL query to fetch both orders and draft orders
     const query = `
       {
-        orders(first: 50, sortKey: CREATED_AT, reverse: true) {
+        orders(first: 25, sortKey: CREATED_AT, reverse: true) {
+          edges {
+            node {
+              id
+              name
+              createdAt
+              displayFinancialStatus
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              lineItems(first: 50) {
+                edges {
+                  node {
+                    id
+                    title
+                    quantity
+                    originalUnitPrice
+                    variant {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        draftOrders(first: 25, sortKey: CREATED_AT, reverse: true) {
           edges {
             node {
               id
@@ -83,19 +112,37 @@ export async function GET(request: Request) {
       throw new Error(`GraphQL Error: ${JSON.stringify(data.errors)}`);
     }
 
-    // Transform the GraphQL response to match our expected format
-    const orders = data.data.orders.edges.map(({ node }: any) => ({
-      id: node.id.split('/').pop(),
-      order_number: node.name.replace('#', ''),
-      total_price: node.totalPriceSet.shopMoney.amount,
-      created_at: node.createdAt,
-      line_items: node.lineItems.edges.map(({ node: item }: any) => ({
-        id: item.variant?.id?.split('/').pop() || item.id.split('/').pop(),
-        title: item.title,
-        quantity: item.quantity,
-        price: item.originalUnitPrice
+    // Transform both orders and draft orders
+    const orders = [
+      ...data.data.orders.edges.map(({ node }: any) => ({
+        id: node.id.split('/').pop(),
+        order_number: node.name.replace('#', ''),
+        total_price: node.totalPriceSet.shopMoney.amount,
+        created_at: node.createdAt,
+        status: node.displayFinancialStatus?.toLowerCase() || 'paid',
+        isDraft: false,
+        line_items: node.lineItems.edges.map(({ node: item }: any) => ({
+          id: item.variant?.id?.split('/').pop() || item.id.split('/').pop(),
+          title: item.title,
+          quantity: item.quantity,
+          price: item.originalUnitPrice
+        }))
+      })),
+      ...data.data.draftOrders.edges.map(({ node }: any) => ({
+        id: node.id.split('/').pop(),
+        order_number: node.name.replace('#', ''),
+        total_price: node.totalPriceSet.shopMoney.amount,
+        created_at: node.createdAt,
+        status: 'draft',
+        isDraft: true,
+        line_items: node.lineItems.edges.map(({ node: item }: any) => ({
+          id: item.variant?.id?.split('/').pop() || item.id.split('/').pop(),
+          title: item.title,
+          quantity: item.quantity,
+          price: item.originalUnitPrice
+        }))
       }))
-    }));
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     console.log('Successfully fetched orders. Count:', orders.length);
     return NextResponse.json({ orders });
