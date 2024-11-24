@@ -24,23 +24,49 @@ export default function AuthSuccess() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        // Get shop and accessToken from URL or localStorage
+        // Get shop and accessToken from URL
         const urlParams = new URLSearchParams(window.location.search);
         const shop = urlParams.get('shop');
         const accessToken = urlParams.get('accessToken');
 
+        console.log('Auth Success Page - URL Params:', {
+          shop,
+          hasAccessToken: !!accessToken
+        });
+
         if (!shop || !accessToken) {
-          throw new Error('Missing shop or access token');
+          throw new Error('Missing shop or access token in URL parameters');
         }
 
-        const response = await fetch(`/api/orders?shop=${shop}&accessToken=${accessToken}`);
+        console.log('Fetching orders...');
+        const response = await fetch(`/api/orders?shop=${encodeURIComponent(shop)}&accessToken=${encodeURIComponent(accessToken)}`);
+        
+        const responseText = await response.text();
+        console.log('Orders API Response:', {
+          status: response.status,
+          ok: response.ok,
+          responseText: responseText.substring(0, 200) + '...' // Log first 200 chars
+        });
+
         if (!response.ok) {
-          throw new Error('Failed to fetch orders');
+          throw new Error(`Failed to fetch orders: ${response.status} ${responseText}`);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error('Failed to parse response:', e);
+          throw new Error('Invalid response format from orders API');
+        }
+
+        console.log('Orders fetched successfully:', {
+          count: data.orders?.length || 0
+        });
+
         setOrders(data.orders || []);
       } catch (err) {
+        console.error('Error in fetchOrders:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
@@ -66,6 +92,12 @@ export default function AuthSuccess() {
         quantity: item.quantity
       }));
 
+      console.log('Creating reorder...', {
+        shop,
+        hasAccessToken: !!accessToken,
+        lineItems
+      });
+
       const response = await fetch('/api/reorder', {
         method: 'POST',
         headers: {
@@ -78,13 +110,20 @@ export default function AuthSuccess() {
         }),
       });
 
+      const responseText = await response.text();
+      console.log('Reorder API Response:', {
+        status: response.status,
+        ok: response.ok,
+        responseText: responseText.substring(0, 200) + '...'
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to create reorder');
+        throw new Error(`Failed to create reorder: ${response.status} ${responseText}`);
       }
 
-      const data = await response.json();
       alert('Order successfully created!');
     } catch (err) {
+      console.error('Error in handleReorder:', err);
       alert(err instanceof Error ? err.message : 'Failed to create reorder');
     } finally {
       setReorderLoading(null);
@@ -111,45 +150,51 @@ export default function AuthSuccess() {
     <div className="min-h-screen bg-gray-100 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Your Orders</h1>
-        <div className="grid gap-6">
-          {orders.map((order) => (
-            <div key={order.id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold">Order #{order.order_number}</h2>
-                  <p className="text-gray-600">
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </p>
+        {orders.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-6 text-center">
+            <p className="text-gray-600">No orders found.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6">
+            {orders.map((order) => (
+              <div key={order.id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold">Order #{order.order_number}</h2>
+                    <p className="text-gray-600">
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold">${order.total_price}</p>
+                    <button
+                      onClick={() => handleReorder(order)}
+                      disabled={reorderLoading === order.id}
+                      className={`mt-2 ${
+                        reorderLoading === order.id
+                          ? 'bg-gray-400'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      } text-white px-4 py-2 rounded transition-colors`}
+                    >
+                      {reorderLoading === order.id ? 'Processing...' : 'Reorder'}
+                    </button>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-semibold">${order.total_price}</p>
-                  <button
-                    onClick={() => handleReorder(order)}
-                    disabled={reorderLoading === order.id}
-                    className={`mt-2 ${
-                      reorderLoading === order.id
-                        ? 'bg-gray-400'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    } text-white px-4 py-2 rounded transition-colors`}
-                  >
-                    {reorderLoading === order.id ? 'Processing...' : 'Reorder'}
-                  </button>
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-2">Items:</h3>
+                  <ul className="space-y-2">
+                    {order.line_items.map((item) => (
+                      <li key={item.id} className="flex justify-between">
+                        <span>{item.title} x {item.quantity}</span>
+                        <span>${item.price}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-2">Items:</h3>
-                <ul className="space-y-2">
-                  {order.line_items.map((item) => (
-                    <li key={item.id} className="flex justify-between">
-                      <span>{item.title} x {item.quantity}</span>
-                      <span>${item.price}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
