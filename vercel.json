@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["lhr1"],
+  "env": {
+    "SHOPIFY_API_KEY": "eb6997bc548bee1e68076656887d4d04",
+    "SHOPIFY_API_SECRET": "3b97fb0aa0a524c0cbb2ce3cec5a6b41",
+    "SCOPES": "read_orders,write_orders",
+    "HOST": "https://bourdain-test.vercel.app"
+  }
+}
